@@ -1130,6 +1130,7 @@ local TeleportModule = (function()
     local function loadFromGitHub()
         loadError = nil
         local success, result = pcall(function()
+            print("Loading Teleport Module")
             local script = game:HttpGet(TELEPORT_MODULE_URL)
             return loadstring(script)()
         end)
@@ -1141,9 +1142,7 @@ local TeleportModule = (function()
             currentMap = detectCurrentMap()
             handleMapChange(currentMap)
             
-            -- Baris print di bawah ini kita matikan/hapus agar tidak dobel di F9
-            -- print("Teleport Module loaded! Maps: " .. (result.GetMapCount and result.GetMapCount() or "?")) 
-            
+            print("Teleport Module loaded! Maps: " .. (result.GetMapCount and result.GetMapCount() or "?"))
             return true
         else
             loadError = tostring(result)
