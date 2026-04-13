@@ -1,12 +1,39 @@
 -- ========================================================================== --
---                      RZPRIVATE - EVADE (OBSIDIAN VERSION)                  --
---                            by iruz | version 3.0                           --
+--                             1. JUNKIE API SETUP                            --
 -- ========================================================================== --
+local Junkie = loadstring(game:HttpGet("https://jnkie.com/sdk/library.lua"))()
+Junkie.service = "rzpv"
+Junkie.identifier = "1040009"
+Junkie.provider = "rzpv"
+
+local keyFileName = "rzprivate_verified_key.txt"
+
+local function hasFileSystemSupport()
+    return pcall(function() return type(writefile) == "function" and type(readfile) == "function" end)
+end
+
+local function saveVerifiedKey(key)
+    if not hasFileSystemSupport() then return end
+    pcall(function() writefile(keyFileName, key) end)
+end
+
+local function loadVerifiedKey()
+    if not hasFileSystemSupport() then return nil end
+    local ok, content = pcall(function() return readfile(keyFileName) end)
+    if not ok or not content or content == "" then return nil end
+    return content
+end
+
+local function clearSavedKey()
+    if not hasFileSystemSupport() then return end
+    pcall(function() delfile(keyFileName) end)
+end
 
 -- ========================================================================== --
---                            SERVICES & MODULES                               --
+--                     2. MAIN HUB DITARUH DI TENGAH SINI                     --
 -- ========================================================================== --
-
+local function LoadMainHub()
+    
 local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
 local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
 local ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))()
@@ -1034,7 +1061,7 @@ end)()
 -- ========================================================================== --
 
 local TeleportModule = (function()
-    local TELEPORT_MODULE_URL = "https://raw.githubusercontent.com/rr67zprv/hi/refs/heads/main/game/ev/modules/TeleportModule.lua"
+    local TELEPORT_MODULE_URL = "https://raw.githubusercontent.com/axxxnozxob/ev/refs/heads/main/ve/Modules/TeleportModule.lua"
     
     local moduleData = nil
     local loadError = nil
@@ -3158,7 +3185,7 @@ local SuperLaunchModule = (function()
 end)()
 
 -- ========================================================================== --
---                         INFINITE SLIDE MODULE                              --
+--                           INFINITE SLIDE MODULE                            --
 -- ========================================================================== --
 
 local InfiniteSlideModule = (function()
@@ -3186,6 +3213,9 @@ local InfiniteSlideModule = (function()
     end
     
     local function findMovementTables()
+        -- KUNCI OPTIMASI 1: Jangan scan getgc() kalau tabel sudah ketemu sebelumnya!
+        if #movementTables > 0 then return true end
+        
         movementTables = {}
         for _, obj in ipairs(getgc(true)) do
             if hasRequiredFields(obj) then
@@ -3251,13 +3281,23 @@ local InfiniteSlideModule = (function()
     local function onCharacterAdded(character)
         if not enabled then return end
         
-        for i = 1, 5 do
-            task.wait(0.5)
-            if getPlayerModel() then break end
-        end
-        
-        task.wait(0.5)
-        findMovementTables() -- Cache data saat spawn saja
+        -- Masukkan ke dalam background thread agar tidak memblokir pergerakan game saat respawn
+        task.spawn(function()
+            -- Beri jeda 1.5 detik agar FPS stabil dulu setelah respawn
+            task.wait(1.5) 
+            
+            -- Kosongkan cache tabel lama, HANYA SAAT RESPAWN
+            movementTables = {} 
+            
+            -- Tunggu sampai Evade selesai me-load model playermu
+            for i = 1, 10 do
+                if getPlayerModel() then break end
+                task.wait(0.5)
+            end
+            
+            -- Lakukan scan memori baru secara diam-diam
+            findMovementTables() 
+        end)
     end
     
     local function start()
@@ -3294,8 +3334,9 @@ local InfiniteSlideModule = (function()
         end
         
         setSlideFriction(5) -- Kembalikan ke normal saat dimatikan
-        movementTables = {}
         isCurrentlySliding = false
+        
+        -- KUNCI OPTIMASI 2: movementTables = {} Dihapus dari sini!
         
         Info("Infinite Slide", "Disabled", 2)
     end
@@ -8041,3 +8082,100 @@ Library:OnUnload(function()
 
     print("Script unloaded successfully!")
 end)
+
+end
+
+-- ========================================================================== --
+--                        3. KEY SYSTEM DI PALING BAWAH                       --
+-- ========================================================================== --
+local savedKey = loadVerifiedKey()
+local autoVerified = false
+
+-- Proses Auto-Login
+if savedKey then
+    local result = Junkie.check_key(savedKey)
+    if result and result.valid then
+        autoVerified = true
+        task.spawn(LoadMainHub)
+    else
+        clearSavedKey()
+    end
+end
+
+-- Jika tidak ada key, Munculkan UI Key System
+if not autoVerified then
+    local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
+    local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
+
+    Library.AccentColor = Color3.fromRGB(115, 215, 85)
+    Library.MainColor = Color3.fromRGB(25, 25, 25)
+    Library.BackgroundColor = Color3.fromRGB(15, 15, 15)
+    Library.OutlineColor = Color3.fromRGB(45, 45, 45)
+
+    local KeyWindow = Library:CreateWindow({
+        Title = "rzprivate - Key System",
+        Footer = "Powered by Junkie",
+        Center = true,
+        AutoShow = true,
+        Size = UDim2.new(0, 550, 0, 320)
+    })
+
+    local KeyTabs = { Main = KeyWindow:AddTab("Key System", "key") }
+    local KeyGroupBox = KeyTabs.Main:AddLeftGroupbox("Authentication", "keyboard")
+
+    local KolomKey = KeyGroupBox:AddInput("KeyInput", {
+        Default = "", Numeric = false, Finished = false, Text = "Input", Placeholder = "Enter your key here...",
+    })
+
+    KeyGroupBox:AddButton({
+        Text = "Verify Key",
+        Func = function()
+            local inputKey = KolomKey.Value:gsub("%s+", "")
+            
+            if inputKey == "" then
+                Library:Notify({ Title = "Error", Description = "Please enter a key!", Time = 3 })
+                return
+            end
+            
+            local result = Junkie.check_key(inputKey)
+            
+            if result and result.valid then
+                Library:Notify({ Title = "Success", Description = "Key Valid! Loading Script...", Time = 2 })
+                saveVerifiedKey(inputKey)
+                
+                -- Hapus UI Key System dari layar
+                Library:Unload() 
+                task.wait(1)
+                
+                -- Panggil Script Utama
+                LoadMainHub() 
+            else
+                Library:Notify({ Title = "Error", Description = "Invalid or Expired Key!", Time = 3 })
+            end
+        end,
+    })
+
+    KeyGroupBox:AddButton({
+        Text = "Get Key Link",
+        Func = function()
+            local keyLink = Junkie.get_key_link()
+            if keyLink then
+                local success = pcall(function() setclipboard(keyLink) end)
+                if success then
+                    Library:Notify({ Title = "Copied", Description = "Key link copied to clipboard!", Time = 3 })
+                else
+                    Library:Notify({ Title = "Error", Description = "Clipboard not supported", Time = 3 })
+                end
+            else
+                Library:Notify({ Title = "Error", Description = "Failed to get link from Junkie", Time = 3 })
+            end
+        end,
+    })
+
+    local InfoGroupBox = KeyTabs.Main:AddRightGroupbox("Information", "info")
+    InfoGroupBox:AddLabel("Current Game:\nEvade", true)
+    InfoGroupBox:AddDivider()
+    InfoGroupBox:AddLabel("How to get key?\nClick 'Get Key Link', paste it in your browser, and complete the steps.", true)
+    InfoGroupBox:AddDivider()
+    InfoGroupBox:AddLabel("Join our community:\nt.me/rzprvt", true)
+end
