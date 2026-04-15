@@ -1,38 +1,11 @@
 -- ========================================================================== --
---                               1. JUNKIE API SETUP                          --
+--                      RZPRIVATE - EVADE (OBSIDIAN VERSION)                  --
+--                            by iruz | version 3.0                           --
 -- ========================================================================== --
-local Junkie = loadstring(game:HttpGet("https://jnkie.com/sdk/library.lua"))()
-Junkie.service = "rzpv"
-Junkie.identifier = "1040009"
-Junkie.provider = "rzpv"
-
-local keyFileName = "rzprivate_verified_key.txt"
-
-local function hasFileSystemSupport()
-    return pcall(function() return type(writefile) == "function" and type(readfile) == "function" end)
-end
-
-local function saveVerifiedKey(key)
-    if not hasFileSystemSupport() then return end
-    pcall(function() writefile(keyFileName, key) end)
-end
-
-local function loadVerifiedKey()
-    if not hasFileSystemSupport() then return nil end
-    local ok, content = pcall(function() return readfile(keyFileName) end)
-    if not ok or not content or content == "" then return nil end
-    return content
-end
-
-local function clearSavedKey()
-    if not hasFileSystemSupport() then return end
-    pcall(function() delfile(keyFileName) end)
-end
 
 -- ========================================================================== --
---                        2. YOUR MAIN SCRIPT GOES HERE                       --
+--                    EVADE ANIMATION ERROR HANDLER (PATCH)                   --
 -- ========================================================================== --
-local function LoadMainHub()
 
 task.spawn(function()
     local success, err = pcall(function()
@@ -3243,7 +3216,7 @@ end)()
 -- ========================================================================== --
 --                    MANUAL SUPER LAUNCH (PURE PHYSICS)                      --
 -- ========================================================================== --
-local SuperLaunchModule = (function()
+local GrappleGlitchModule = (function()
     local enabled = false
     local launchHeight = 150
     local launchDistance = 200
@@ -6270,6 +6243,114 @@ TeleportRight2:AddButton({
     end
 })
 
+-- ==================== DASH / CURSOR TELEPORT ====================
+local TeleportCursorGroup = Tabs.Teleport:AddRightGroupbox("Dash / Cursor Teleport", "mouse-pointer")
+local cursorTpDistance = 10
+local cursorTpDirection = "Towards Cursor"
+
+-- 1. SAFETY TOGGLE (Must be ON to work)
+TeleportCursorGroup:AddToggle("EnableCursorTP", {
+    Text = "Enable Teleport",
+    Default = false,
+    Tooltip = "Enable this safety toggle before using the teleport keybind"
+})
+
+-- 2. DIRECTION DROPDOWN
+TeleportCursorGroup:AddDropdown("CursorTPDirection", {
+    Values = { "Forward", "Backward", "Towards Cursor" },
+    Default = "Towards Cursor",
+    Multi = false,
+    Text = "Teleport Direction",
+    Tooltip = "Choose the teleport direction",
+    Callback = function(Value)
+        cursorTpDirection = Value
+    end
+})
+
+-- 3. DISTANCE SLIDER
+TeleportCursorGroup:AddSlider("CursorTPDistSlider", {
+    Text = "Teleport Distance (Studs)",
+    Tooltip = "Adjust how far you teleport (1 - 100)",
+    Default = 10,
+    Min = 1,
+    Max = 100,
+    Rounding = 1,
+    Compact = false,
+    Callback = function(Value)
+        cursorTpDistance = Value
+        -- Sync the slider value to the Input Box
+        if Options.CursorTPDistInput then
+            Options.CursorTPDistInput:SetValue(tostring(Value))
+        end
+    end
+})
+
+-- 4. MANUAL INPUT
+TeleportCursorGroup:AddInput("CursorTPDistInput", {
+    Default = "10",
+    Numeric = true,
+    Finished = true,
+    Text = "Manual Distance Input",
+    Tooltip = "Type the distance and press Enter",
+    Placeholder = "1-100",
+    Callback = function(Value)
+        local num = tonumber(Value)
+        if num then
+            num = math.clamp(num, 1, 100) -- Safe clamp between 1-100
+            -- Sync the input value to the Slider
+            if Options.CursorTPDistSlider then
+                Options.CursorTPDistSlider:SetValue(num)
+            end
+            cursorTpDistance = num
+        end
+    end
+})
+
+TeleportCursorGroup:AddDivider()
+
+-- 5. KEYBIND WITH DIRECTION LOGIC
+TeleportCursorGroup:AddLabel("Teleport Keybind"):AddKeyPicker("CursorTPKey", {
+    Default = "C", 
+    SyncToggleState = false,
+    Mode = "Press",
+    Text = "Execute Teleport",
+    Callback = function()
+        -- CHECK IF TOGGLE IS ON
+        if not Toggles.EnableCursorTP.Value then 
+            return 
+        end
+
+        local player = game:GetService("Players").LocalPlayer
+        local char = player.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        if not hrp then return end
+
+        if cursorTpDirection == "Forward" then
+            -- Teleport forward based on character's current rotation
+            hrp.CFrame = hrp.CFrame + (hrp.CFrame.LookVector * cursorTpDistance)
+            
+        elseif cursorTpDirection == "Backward" then
+            -- Teleport backward based on character's current rotation
+            hrp.CFrame = hrp.CFrame + (-hrp.CFrame.LookVector * cursorTpDistance)
+            
+        elseif cursorTpDirection == "Towards Cursor" then
+            -- Teleport 3D towards mouse position
+            local mouse = player:GetMouse()
+            if not mouse.Hit then return end
+
+            local targetPos = mouse.Hit.Position
+            local direction = (targetPos - hrp.Position)
+            
+            if direction.Magnitude > 0 then
+                direction = direction.Unit
+                hrp.CFrame = hrp.CFrame + (direction * cursorTpDistance)
+            end
+        end
+    end
+})
+
+TeleportCursorGroup:AddLabel("💡 Tip: 'Forward' and 'Backward' are based on where your character is currently facing, completely ignoring the mouse.", true)
+
 -- ========================================================================== --
 --                            ESP TAB                                          --
 -- ========================================================================== --
@@ -7266,17 +7347,17 @@ MovementRight2:AddLabel("💡 Lower gravity = slower fall\nDefault gravity: " ..
 
 MovementRight2:AddDivider()
 
-MovementRight2:AddToggle("SuperLaunch", {
+MovementRight2:AddToggle("GrappleGlitch", {
     Text = "Grapple Glitch",
     Tooltip = "Tahan V lalu Klik Kiri untuk melontarkan karaktermu ke arah kamera/mouse!",
     Default = false,
-}):AddKeyPicker("SuperLaunchKey", { Default = "Q", SyncToggleState = true, Mode = "Toggle", Text = "Super Launch" })
+}):AddKeyPicker("GrappleGlitchKey", { Default = "", SyncToggleState = true, Mode = "Toggle", Text = "Super Launch" })
 
-Toggles.SuperLaunch:OnChanged(function()
-    if Toggles.SuperLaunch.Value then
-        SuperLaunchModule.Start()
+Toggles.GrappleGlitch:OnChanged(function()
+    if Toggles.GrappleGlitch.Value then
+        GrappleGlitchModule.Start()
     else
-        SuperLaunchModule.Stop()
+        GrappleGlitchModule.Stop()
     end
 end)
 
@@ -7290,7 +7371,7 @@ MovementRight2:AddSlider("LaunchHeightSlider", {
     Rounding = 0,
     Compact = false,
     Callback = function(Value)
-        SuperLaunchModule.SetHeight(Value)
+        GrappleGlitchModule.SetHeight(Value)
         -- Sinkronkan angka ke Input Box
         if Options.LaunchHeightInput then
             Options.LaunchHeightInput:SetValue(tostring(Value))
@@ -7312,7 +7393,7 @@ MovementRight2:AddInput("LaunchHeightInput", {
             if Options.LaunchHeightSlider then
                 Options.LaunchHeightSlider:SetValue(num)
             end
-            SuperLaunchModule.SetHeight(num)
+            GrappleGlitchModule.SetHeight(num)
         end
     end
 })
@@ -7329,7 +7410,7 @@ MovementRight2:AddSlider("LaunchDistanceSlider", {
     Rounding = 0,
     Compact = false,
     Callback = function(Value)
-        SuperLaunchModule.SetDistance(Value)
+        GrappleGlitchModule.SetDistance(Value)
         -- Sinkronkan angka ke Input Box
         if Options.LaunchDistanceInput then
             Options.LaunchDistanceInput:SetValue(tostring(Value))
@@ -7351,7 +7432,7 @@ MovementRight2:AddInput("LaunchDistanceInput", {
             if Options.LaunchDistanceSlider then
                 Options.LaunchDistanceSlider:SetValue(num)
             end
-            SuperLaunchModule.SetDistance(num)
+            GrappleGlitchModule.SetDistance(num)
         end
     end
 })
@@ -7365,17 +7446,17 @@ MovementRight2:AddDropdown("LaunchDirection", {
     Tooltip = "Pilih arah karakter saat dilontarkan",
     Callback = function(Value)
         if Value == "Maju (Ke Depan)" then
-            SuperLaunchModule.SetDirection("Maju")
+            GrappleGlitchModule.SetDirection("Maju")
         elseif Value == "Mundur (Ke Belakang)" then
-            SuperLaunchModule.SetDirection("Mundur")
+            GrappleGlitchModule.SetDirection("Mundur")
         elseif Value == "Kiri (Ke Kiri)" then
-            SuperLaunchModule.SetDirection("Kiri")
+            GrappleGlitchModule.SetDirection("Kiri")
         elseif Value == "Kanan (Ke Kanan)" then
-            SuperLaunchModule.SetDirection("Kanan")
+            GrappleGlitchModule.SetDirection("Kanan")
         elseif Value == "Tetap (Lurus Ke Atas)" then
-            SuperLaunchModule.SetDirection("Tetap")
+            GrappleGlitchModule.SetDirection("Tetap")
         elseif Value == "Ke Arah Kursor (Mouse)" then
-            SuperLaunchModule.SetDirection("Mouse")
+            GrappleGlitchModule.SetDirection("Mouse")
         end
         Success("Super Launch", "Arah diubah ke: " .. Value, 1)
     end
@@ -8168,7 +8249,7 @@ EmoteChangerModule.Init()
 task.delay(2, function()                                          
     isScriptLoading = false                                       
     Library:Notify({                                              
-        Title = "rzprivate - Evade",                           
+        Title = "✅ rzprivate - Evade",                           
         Description = "Script loaded successfully! All features ready.", 
         Time = 5,                                                 
     })                                                            
@@ -8201,7 +8282,7 @@ Library:OnUnload(function()
     if InfiniteSlideModule and InfiniteSlideModule.IsEnabled() then InfiniteSlideModule.Stop() end
     if BounceModule and BounceModule.IsEnabled() then BounceModule.Stop() end
     if GravityModule and GravityModule.IsEnabled() then GravityModule.Stop() end
-    if SuperLaunchModule and SuperLaunchModule.IsEnabled() then SuperLaunchModule.Stop() end
+    if GrappleGlitchModule and GrappleGlitchModule.IsEnabled() then GrappleGlitchModule.Stop() end
     if EasyTrimpModule and EasyTrimpModule.IsEnabled() then EasyTrimpModule.Stop() end
     
     -- === VISUAL & ESP ===
@@ -8229,114 +8310,3 @@ Library:OnUnload(function()
 
     print("Script unloaded successfully!")
 end)
-end
-
--- ========================================================================== --
---                        3. KEY SYSTEM UI AT THE BOTTOM                      --
--- ========================================================================== --
-local savedKey = loadVerifiedKey()
-local autoVerified = false
-
--- Auto-Login Process
-if savedKey then
-    local result = Junkie.check_key(savedKey)
-    if result and result.valid then
-        autoVerified = true
-        task.spawn(LoadMainHub)
-    else
-        clearSavedKey()
-    end
-end
-
--- If there's no valid key, show the Key System UI
-if not autoVerified then
-    local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
-    local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
-
-    Library.AccentColor = Color3.fromRGB(115, 215, 85)
-    Library.MainColor = Color3.fromRGB(25, 25, 25)
-    Library.BackgroundColor = Color3.fromRGB(15, 15, 15)
-    Library.OutlineColor = Color3.fromRGB(45, 45, 45)
-
-    local KeyWindow = Library:CreateWindow({
-        Title = "rzprivate",
-        Footer = "t.me/rzprvt | version 3.0",
-        Center = true,
-        AutoShow = true,
-        Size = UDim2.new(0, 550, 0, 320)
-    })
-
-    local KeyTabs = { Main = KeyWindow:AddTab("Key System", "key") }
-    local KeyGroupBox = KeyTabs.Main:AddLeftGroupbox("Authentication", "keyboard")
-
-    local KolomKey = KeyGroupBox:AddInput("KeyInput", {
-        Default = "", Numeric = false, Finished = false, Text = "Input", Placeholder = "Enter your key here...",
-    })
-
-    KeyGroupBox:AddButton({
-        Text = "Verify Key",
-        Func = function()
-            local inputKey = KolomKey.Value:gsub("%s+", "")
-            
-            if inputKey == "" then
-                Library:Notify({ 
-                    Title = "Warning", 
-                    Description = "Please enter a key first!", 
-                    Time = 3 
-                })
-                return
-            end
-            
-            local result = Junkie.check_key(inputKey)
-            
-            if result and result.valid then
-                -- Notification if Key is CORRECT
-                Library:Notify({ 
-                    Title = "Key Valid", 
-                    Description = "Authentication successful! Loading main script...", 
-                    Time = 2 
-                })
-                
-                saveVerifiedKey(inputKey)
-                
-                -- Add a delay so the notification is visible before the UI closes
-                task.delay(1.5, function()
-                    Library:Unload() 
-                    task.wait(0.5)
-                    LoadMainHub() 
-                end)
-            else
-                -- Notification if Key is WRONG / EXPIRED
-                Library:Notify({ 
-                    Title = "Authentication Failed", 
-                    Description = "The key you entered is invalid or has expired!", 
-                    Time = 3 
-                })
-            end
-        end,
-    })
-
-    KeyGroupBox:AddButton({
-        Text = "Get Key Link",
-        Func = function()
-            local keyLink = Junkie.get_key_link()
-            if keyLink then
-                local success = pcall(function() setclipboard(keyLink) end)
-                if success then
-                    Library:Notify({ Title = "Copied", Description = "Key link copied to clipboard!", Time = 3 })
-                else
-                    Library:Notify({ Title = "Error", Description = "Clipboard not supported", Time = 3 })
-                end
-            else
-                Library:Notify({ Title = "Error", Description = "Failed to get link from Junkie", Time = 3 })
-            end
-        end,
-    })
-
-    local InfoGroupBox = KeyTabs.Main:AddRightGroupbox("Information", "info")
-    InfoGroupBox:AddLabel("Current Game:\nEvade", true)
-    InfoGroupBox:AddDivider()
-    InfoGroupBox:AddLabel("How to get key?\nClick 'Get Key Link', paste it in your browser, and complete the steps.", true)
-    InfoGroupBox:AddDivider()
-    InfoGroupBox:AddLabel("Join our community:\nt.me/rzprvt", true)
-end
