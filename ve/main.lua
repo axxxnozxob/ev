@@ -1,5 +1,5 @@
 -- ========================================================================== --
---                             1. JUNKIE API SETUP                            --
+--                               1. JUNKIE API SETUP                          --
 -- ========================================================================== --
 local Junkie = loadstring(game:HttpGet("https://jnkie.com/sdk/library.lua"))()
 Junkie.service = "rzpv"
@@ -30,10 +30,171 @@ local function clearSavedKey()
 end
 
 -- ========================================================================== --
---                     2. MAIN HUB DITARUH DI TENGAH SINI                     --
+--                        2. YOUR MAIN SCRIPT GOES HERE                       --
 -- ========================================================================== --
 local function LoadMainHub()
-    
+
+task.spawn(function()
+    local success, err = pcall(function()
+        local ReplicatedStorage = game:GetService("ReplicatedStorage")
+        
+        -- Mengambil ModuleScript yang bermasalah dari internal game Evade
+        local jointsModulePath = ReplicatedStorage:WaitForChild("Modules")
+            :WaitForChild("Character")
+            :WaitForChild("CharacterTable")
+            :WaitForChild("CharacterController")
+            :WaitForChild("Global")
+            :WaitForChild("Rig")
+            :WaitForChild("Joints")
+            
+        local jointsModule = require(jointsModulePath)
+
+        -- Menyimpan fungsi asli bawaan game
+        local oldInterpolateLimbs = jointsModule.InterpolateLimbs
+
+        -- Menimpa fungsi tersebut dengan versi yang aman (Protected)
+        jointsModule.InterpolateLimbs = function(...)
+            -- Menjalankan fungsi asli menggunakan pcall
+            local runSuccess, result = pcall(oldInterpolateLimbs, ...)
+            
+            -- Jika fungsi asli gagal (karena argument nil, dll), kita diamkan saja
+            if not runSuccess then
+                return nil 
+            end
+            
+            -- Jika berhasil, kembalikan hasilnya seperti biasa
+            return result
+        end
+    end)
+end)
+
+-- ========================================================================== --
+--                      EVADE EMOTE ERROR HANDLER (PATCH)                     --
+-- ========================================================================== --
+
+task.spawn(function()
+    local success, err = pcall(function()
+        local ReplicatedStorage = game:GetService("ReplicatedStorage")
+        local emotesFolder = ReplicatedStorage:WaitForChild("Items"):WaitForChild("Emotes")
+        
+        -- Melakukan looping ke semua data Emote di dalam game
+        for _, emoteFolder in ipairs(emotesFolder:GetChildren()) do
+            local moduleClassic = emoteFolder:FindFirstChild("EmoteModuleClassic")
+            
+            if moduleClassic and moduleClassic:IsA("ModuleScript") then
+                -- Menjalankan require secara asynchronous agar tidak bikin lag saat loading
+                task.spawn(function()
+                    local req = require(moduleClassic)
+                    if type(req) == "table" then
+                        -- Membungkus setiap fungsi di dalam emote dengan pcall
+                        for funcName, func in pairs(req) do
+                            if type(func) == "function" then
+                                local oldFunc = func
+                                req[funcName] = function(...)
+                                    local runSuccess, result = pcall(oldFunc, ...)
+                                    if not runSuccess then 
+                                        return nil 
+                                    end
+                                    return result
+                                end
+                            end
+                        end
+                    end
+                end)
+            end
+        end
+    end)
+end)
+
+-- ========================================================================== --
+--                 EVADE INFINITE YIELD ERROR HANDLER (PATCH 3)               --
+-- ========================================================================== --
+task.spawn(function()
+    local success, err = pcall(function()
+        local oldNamecall
+        oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+            local method = getnamecallmethod()
+            local args = {...}
+            
+            -- Jika game menggunakan fungsi WaitForChild
+            if method == "WaitForChild" and type(args[1]) == "string" then
+                -- Jika game sedang mencari "BoundingBox" tanpa batas waktu
+                if args[1] == "BoundingBox" and args[2] == nil then
+                    -- Kita suntikkan batas waktu 9999 detik secara diam-diam
+                    -- agar tulisan kuning 'Infinite yield' tidak muncul
+                    return oldNamecall(self, args[1], 9999)
+                end
+            end
+            
+            return oldNamecall(self, ...)
+        end)
+    end)
+end)
+
+-- ========================================================================== --
+--                 EVADE TOOL & VISUAL ERROR HANDLER (PATCH 4)                --
+-- ========================================================================== --
+task.spawn(function()
+    local success, err = pcall(function()
+        local ReplicatedStorage = game:GetService("ReplicatedStorage")
+        
+        -- 1. Membungkus modul VisualTools internal Evade
+        local visualToolsPath = ReplicatedStorage:WaitForChild("Modules")
+            :WaitForChild("Character")
+            :WaitForChild("CharacterTable")
+            :WaitForChild("CharacterController")
+            :WaitForChild("Global")
+            :WaitForChild("Rig")
+            :WaitForChild("VisualTools")
+            
+        local vtModule = require(visualToolsPath)
+        if type(vtModule) == "table" then
+            for k, v in pairs(vtModule) do
+                if type(v) == "function" then
+                    local oldFunc = v
+                    vtModule[k] = function(...)
+                        local s, r = pcall(oldFunc, ...)
+                        if not s then return nil end
+                        return r
+                    end
+                end
+            end
+        end
+        
+        -- 2. Membungkus semua skrip karakter dari alat (seperti StunBaton)
+        local toolsFolder = ReplicatedStorage:WaitForChild("Tools")
+        for _, tool in ipairs(toolsFolder:GetChildren()) do
+            local variants = tool:FindFirstChild("Variants")
+            if variants then
+                for _, variant in ipairs(variants:GetChildren()) do
+                    local charModule = variant:FindFirstChild("Character")
+                    if charModule and charModule:IsA("ModuleScript") then
+                        task.spawn(function()
+                            local req = require(charModule)
+                            if type(req) == "table" then
+                                for k, v in pairs(req) do
+                                    if type(v) == "function" then
+                                        local oldFunc = v
+                                        req[k] = function(...)
+                                            local s, r = pcall(oldFunc, ...)
+                                            if not s then return nil end
+                                            return r
+                                        end
+                                    end
+                                end
+                            end
+                        end)
+                    end
+                end
+            end
+        end
+    end)
+end)
+
+-- ========================================================================== --
+--                            SERVICES & MODULES                               --
+-- ========================================================================== --
+
 local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
 local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
 local ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))()
@@ -1061,7 +1222,7 @@ end)()
 -- ========================================================================== --
 
 local TeleportModule = (function()
-    local TELEPORT_MODULE_URL = "https://raw.githubusercontent.com/axxxnozxob/ev/refs/heads/main/ve/Modules/TeleportModule.lua"
+    local TELEPORT_MODULE_URL = "https://raw.githubusercontent.com/rr67zprv/hi/refs/heads/main/game/ev/modules/TeleportModule.lua"
     
     local moduleData = nil
     local loadError = nil
@@ -3185,7 +3346,7 @@ local SuperLaunchModule = (function()
 end)()
 
 -- ========================================================================== --
---                           INFINITE SLIDE MODULE                            --
+--                         INFINITE SLIDE MODULE                              --
 -- ========================================================================== --
 
 local InfiniteSlideModule = (function()
@@ -3213,9 +3374,6 @@ local InfiniteSlideModule = (function()
     end
     
     local function findMovementTables()
-        -- KUNCI OPTIMASI 1: Jangan scan getgc() kalau tabel sudah ketemu sebelumnya!
-        if #movementTables > 0 then return true end
-        
         movementTables = {}
         for _, obj in ipairs(getgc(true)) do
             if hasRequiredFields(obj) then
@@ -3281,23 +3439,13 @@ local InfiniteSlideModule = (function()
     local function onCharacterAdded(character)
         if not enabled then return end
         
-        -- Masukkan ke dalam background thread agar tidak memblokir pergerakan game saat respawn
-        task.spawn(function()
-            -- Beri jeda 1.5 detik agar FPS stabil dulu setelah respawn
-            task.wait(1.5) 
-            
-            -- Kosongkan cache tabel lama, HANYA SAAT RESPAWN
-            movementTables = {} 
-            
-            -- Tunggu sampai Evade selesai me-load model playermu
-            for i = 1, 10 do
-                if getPlayerModel() then break end
-                task.wait(0.5)
-            end
-            
-            -- Lakukan scan memori baru secara diam-diam
-            findMovementTables() 
-        end)
+        for i = 1, 5 do
+            task.wait(0.5)
+            if getPlayerModel() then break end
+        end
+        
+        task.wait(0.5)
+        findMovementTables() -- Cache data saat spawn saja
     end
     
     local function start()
@@ -3334,9 +3482,8 @@ local InfiniteSlideModule = (function()
         end
         
         setSlideFriction(5) -- Kembalikan ke normal saat dimatikan
+        movementTables = {}
         isCurrentlySliding = false
-        
-        -- KUNCI OPTIMASI 2: movementTables = {} Dihapus dari sini!
         
         Info("Infinite Slide", "Disabled", 2)
     end
@@ -8021,7 +8168,7 @@ EmoteChangerModule.Init()
 task.delay(2, function()                                          
     isScriptLoading = false                                       
     Library:Notify({                                              
-        Title = "✅ rzprivate - Evade",                           
+        Title = "rzprivate - Evade",                           
         Description = "Script loaded successfully! All features ready.", 
         Time = 5,                                                 
     })                                                            
@@ -8082,16 +8229,15 @@ Library:OnUnload(function()
 
     print("Script unloaded successfully!")
 end)
-
 end
 
 -- ========================================================================== --
---                        3. KEY SYSTEM DI PALING BAWAH                       --
+--                        3. KEY SYSTEM UI AT THE BOTTOM                      --
 -- ========================================================================== --
 local savedKey = loadVerifiedKey()
 local autoVerified = false
 
--- Proses Auto-Login
+-- Auto-Login Process
 if savedKey then
     local result = Junkie.check_key(savedKey)
     if result and result.valid then
@@ -8102,7 +8248,7 @@ if savedKey then
     end
 end
 
--- Jika tidak ada key, Munculkan UI Key System
+-- If there's no valid key, show the Key System UI
 if not autoVerified then
     local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
     local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
@@ -8133,24 +8279,39 @@ if not autoVerified then
             local inputKey = KolomKey.Value:gsub("%s+", "")
             
             if inputKey == "" then
-                Library:Notify({ Title = "Error", Description = "Please enter a key!", Time = 3 })
+                Library:Notify({ 
+                    Title = "Warning", 
+                    Description = "Please enter a key first!", 
+                    Time = 3 
+                })
                 return
             end
             
             local result = Junkie.check_key(inputKey)
             
             if result and result.valid then
-                Library:Notify({ Title = "Success", Description = "Key Valid! Loading Script...", Time = 2 })
+                -- Notification if Key is CORRECT
+                Library:Notify({ 
+                    Title = "Key Valid", 
+                    Description = "Authentication successful! Loading main script...", 
+                    Time = 2 
+                })
+                
                 saveVerifiedKey(inputKey)
                 
-                -- Hapus UI Key System dari layar
-                Library:Unload() 
-                task.wait(1)
-                
-                -- Panggil Script Utama
-                LoadMainHub() 
+                -- Add a delay so the notification is visible before the UI closes
+                task.delay(1.5, function()
+                    Library:Unload() 
+                    task.wait(0.5)
+                    LoadMainHub() 
+                end)
             else
-                Library:Notify({ Title = "Error", Description = "Invalid or Expired Key!", Time = 3 })
+                -- Notification if Key is WRONG / EXPIRED
+                Library:Notify({ 
+                    Title = "Authentication Failed", 
+                    Description = "The key you entered is invalid or has expired!", 
+                    Time = 3 
+                })
             end
         end,
     })
