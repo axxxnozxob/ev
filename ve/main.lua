@@ -8113,8 +8113,8 @@ if not autoVerified then
     Library.OutlineColor = Color3.fromRGB(45, 45, 45)
 
     local KeyWindow = Library:CreateWindow({
-        Title = "rzprivate - Key System",
-        Footer = "Powered by Junkie",
+        Title = "rzprivate",
+        Footer = "t.me/rzprvt | version 3.0",
         Center = true,
         AutoShow = true,
         Size = UDim2.new(0, 550, 0, 320)
